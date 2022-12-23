@@ -18,6 +18,16 @@ import {
   // setAuthenticationToken,
 } from "@/lib/auth/state";
 
+import jwt_decode from "jwt-decode";
+
+type decodedType = {
+  exp: number;
+  iat: number;
+  id: string;
+  role: string;
+};
+let decoded: decodedType;
+
 import { NEXT_PUBLIC_GRAPHQL_URL, NEXT_PUBLIC_GRAPHQL_WSS } from "../constants";
 
 const httpLinkEden = new HttpLink({ uri: NEXT_PUBLIC_GRAPHQL_URL });
@@ -25,6 +35,15 @@ const httpLinkEden = new HttpLink({ uri: NEXT_PUBLIC_GRAPHQL_URL });
 const edenLink = new ApolloLink((operation, forward) => {
   const token = getAuthenticationToken() as string;
   //   const refreshToken = getRefreshToken() as string;
+
+  if (token) decoded = jwt_decode(token as string);
+
+  if (token && decoded.exp < Math.floor(Date.now() / 1000)) {
+    console.log("TOKEN EXPIRED");
+    // console.log(decoded);
+    // console.log(Math.floor(Date.now() / 1000));
+    return null;
+  }
 
   // Use the setContext method to set the HTTP headers.
   operation.setContext({
