@@ -2,67 +2,44 @@ import { useQuery, useSubscription } from "@apollo/client";
 import { FIND_CURRENTUSER, FIND_CURRENTUSER_SUB } from "../../graphql";
 import React, { useEffect, useState } from "react";
 
-import { getAuthenticationToken } from "@/lib/auth/state";
-
-// import { isAllServers, isEdenStaff } from "../../data";
-// import { isAllServers } from "../../data";
 import { UserContext } from "./UserContext";
-import jwt_decode from "jwt-decode";
 import { Maybe, Members } from "@/apollo/generated/graphqlEden";
-
-type decodedType = {
-  exp: number;
-  iat: number;
-  _id: string;
-  discordName: string;
-};
-let decoded: decodedType = {
-  exp: 0,
-  iat: 0,
-  _id: "",
-  discordName: "",
-};
+import { useSession } from "next-auth/react";
 
 export interface UserProviderProps {
   children: React.ReactNode;
 }
 
 export const UserProvider = ({ children }: UserProviderProps) => {
-  const token = getAuthenticationToken() as string;
-  if (token) decoded = jwt_decode(token as string);
-  const { _id } = decoded;
+  const { data: session } = useSession();
+  const { id } = session?.user || { id: null };
 
   const [memberServers, setMemberServers] = useState<any>(null);
   const [selectedServer, setSelectedServer] = useState<any>();
-
   const [currentUser, setCurrentUser] = useState<Maybe<Members>>(null);
 
   const { data: dataMember } = useQuery(FIND_CURRENTUSER, {
     variables: {
       fields: {
-        // _id: _id,
-        discordName: "waxy",
+        _id: id as string,
       },
     },
-    skip: !_id,
+    skip: !id,
     context: { serviceName: "soilservice" },
     ssr: false,
   });
 
-  // if (dataMember?.findMember) console.log("dataMember", dataMember?.findMember);
-  // console.log("dataMember", dataMember?.findMember);
-
   useSubscription(FIND_CURRENTUSER_SUB, {
     variables: {
       fields: {
-        _id: _id,
+        _id: id as string,
       },
     },
-    skip: !_id,
+    skip: !id,
     context: { serviceName: "soilservice" },
   });
 
-  // if (dataMember) console.log("dataMember", dataMember.findMember);
+  // if (dataMember?.findMember) console.log("dataMember", dataMember?.findMember);
 
   useEffect(() => {
     if (dataMember?.findMember) {

@@ -30,22 +30,23 @@ import { IncomingMessage, ServerResponse } from "http";
 import { getSession } from "next-auth/react";
 
 export async function getServerSideProps(ctx: {
+  query: any;
   req: IncomingMessage;
   res: ServerResponse;
 }) {
   const session = await getSession(ctx);
-  console.log("session", session);
+  // console.log("auth-only session", session);
 
   const url = ctx.req.url?.replace("/", "");
 
-  //   if (!session) {
-  //     return {
-  //       redirect: {
-  //         destination: `/login?redirect=${url}`,
-  //         permanent: false,
-  //       },
-  //     };
-  //   }
+  if (!session) {
+    return {
+      redirect: {
+        destination: `/login?redirect=${url}`,
+        permanent: false,
+      },
+    };
+  }
 
   return {
     props: {},

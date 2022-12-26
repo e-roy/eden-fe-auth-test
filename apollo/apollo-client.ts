@@ -2,6 +2,8 @@ import {
   ApolloClient,
   InMemoryCache,
   from,
+  fromPromise,
+  toPromise,
   HttpLink,
   ApolloLink,
   split,
@@ -11,12 +13,7 @@ import { RetryLink } from "@apollo/client/link/retry";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { createClient } from "graphql-ws";
 import { getMainDefinition } from "@apollo/client/utilities";
-
-import {
-  getAuthenticationToken,
-  // getRefreshToken,
-  // setAuthenticationToken,
-} from "@/lib/auth/state";
+import axios from "axios";
 
 import jwt_decode from "jwt-decode";
 
@@ -33,45 +30,50 @@ import { NEXT_PUBLIC_GRAPHQL_URL, NEXT_PUBLIC_GRAPHQL_WSS } from "../constants";
 const httpLinkEden = new HttpLink({ uri: NEXT_PUBLIC_GRAPHQL_URL });
 
 const edenLink = new ApolloLink((operation, forward) => {
-  const token = getAuthenticationToken() as string;
-  //   const refreshToken = getRefreshToken() as string;
+  const token = localStorage.getItem("eden_access_token");
+  // console.log("TOKEN", token);
 
   if (token) decoded = jwt_decode(token as string);
 
-  if (token && decoded.exp < Math.floor(Date.now() / 1000)) {
-    console.log("TOKEN EXPIRED");
-    // console.log(decoded);
-    // console.log(Math.floor(Date.now() / 1000));
-    return null;
+  if (token && decoded.exp > Math.floor(Date.now() / 1000)) {
+    console.log("TOKEN IS GOOD");
+    operation.setContext({
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+    return forward(operation);
   }
 
-  // Use the setContext method to set the HTTP headers.
-  operation.setContext({
-    headers: {
-      authorization: token ? `Bearer ${token}` : "",
-    },
-  });
+  return fromPromise(
+    axios(`/api/auth/fetchToken`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    })
+      .then((data: any) => {
+        // console.log("DATA", data.data);
+        if (data.data.error || !data.data.edenToken)
+          return toPromise(forward(operation));
+        const edenToken = data.data.edenToken;
+        operation.setContext({
+          headers: {
+            authorization: `Bearer ${edenToken}`,
+          },
+        });
+        if (edenToken) localStorage.setItem("eden_access_token", edenToken);
+        return toPromise(forward(operation));
+      })
 
-  //   if (token && decoded.exp < Date.now() / 1000) {
-  //     refreshAuth(refreshToken).then((res) => {
-  //       operation.setContext({
-  //         headers: {
-  //           "x-access-token": token
-  //             ? `Bearer ${res?.data?.refresh?.accessToken}`
-  //             : "",
-  //         },
-  //       });
-  //       setAuthenticationToken({ token: res.data.refresh });
-  //     });
-  //   }
-
-  // Call the next link in the middleware chain.
-  return forward(operation);
+      .catch(() => {
+        return toPromise(forward(operation));
+      })
+  );
 });
 
 const httpLinkExtra = new HttpLink({ uri: NEXT_PUBLIC_GRAPHQL_URL, fetch });
-
-// const NEXT_PUBLIC_GRAPHQL_NODE_URL
 
 const extraLink = new ApolloLink((operation, forward) => {
   // Use the setContext method to set the HTTP headers.
